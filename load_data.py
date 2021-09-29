@@ -51,18 +51,20 @@ class RE_Dataset(Dataset):
     train_dset = Subset(self, train_data)
     val_dset = Subset(self, val_data)
     return train_dset, val_dset
-
-def add_sep_tok(sen, sub_start, sub_end, obj_start, obj_end) :
+  
+def add_sep_tok(sen, sub_start, sub_end, sub_type, obj_start, obj_end, obj_type) :
+  sub_type = ' ['+sub_type+'] '
+  obj_type = ' ['+obj_type+'] '
   if sub_start < obj_start :
-    sen = sen[:sub_start] + ' [SEP] ' + sen[sub_start:sub_end+1] + ' [SEP] ' + sen[sub_end+1:]
+    sen = sen[:sub_start]+sub_type+sen[sub_start:sub_end+1]+sub_type+sen[sub_end+1:]
     obj_start += 14
     obj_end += 14
-    sen = sen[:obj_start] + ' [SEP] ' + sen[obj_start:obj_end+1] + ' [SEP] ' + sen[obj_end+1:]
+    sen = sen[:obj_start]+obj_type+sen[obj_start:obj_end+1]+obj_type+sen[obj_end+1:]
   else :
-    sen = sen[:obj_start] + ' [SEP] ' + sen[obj_start:obj_end+1] + ' [SEP] ' + sen[obj_end+1:]
+    sen = sen[:obj_start]+obj_type+sen[obj_start:obj_end+1]+obj_type+sen[obj_end+1:]
     sub_start += 14
     sub_end += 14
-    sen = sen[:sub_start] + ' [SEP] ' + sen[sub_start:sub_end+1] + ' [SEP] ' + sen[sub_end+1:]
+    sen = sen[:sub_start]+sub_type+sen[sub_start:sub_end+1]+sub_type+sen[sub_end+1:]
   return sen
 
 def preprocessing_dataset(dataset):
@@ -77,12 +79,14 @@ def preprocessing_dataset(dataset):
     subject_entity.append(sub_info['word'])
     object_entity.append(obj_info['word'])
         
+    sub_type = sub_info['type']
     sub_start = sub_info['start_idx']
     sub_end = sub_info['end_idx']
+    obj_type = obj_info['type']
     obj_start = obj_info['start_idx']
     obj_end = obj_info['end_idx']
         
-    sen = add_sep_tok(s, sub_start, sub_end, obj_start, obj_end)
+    sen = add_sep_tok(s, sub_start, sub_end, sub_type, obj_start, obj_end, obj_type)
     sen_data.append(sen)
 
   out_dataset = pd.DataFrame({'id':dataset['id'], 
@@ -93,6 +97,7 @@ def preprocessing_dataset(dataset):
   )
   
   return out_dataset
+  
 
 def load_data(dataset_dir):
   """ csv 파일을 경로에 맡게 불러 옵니다. """
