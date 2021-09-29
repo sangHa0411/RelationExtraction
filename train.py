@@ -110,15 +110,13 @@ def train(args):
   model =  AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config).to(device)
 
   # add special token for chinese and japnese character & resize embedding
-  special_tokens_dict = {'additional_special_tokens': ['[CHN]']}
+  special_tokens_dict = {'additional_special_tokens': ['[CHN]','[ORG]', '[PER]', '[DAT]', '[LOC]','[NOH]', '[POH]']}
   num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
   model.resize_token_embeddings(len(tokenizer))
 
   # load dataset
   train_dataset = load_data("/opt/ml/dataset/train/train.csv")
   train_label = label_to_num(train_dataset['label'].values)
-
-  print(train_dataset['sentence'][:3])
 
   # tokenizing dataset
   tokenized_train = tokenized_dataset(train_dataset, tokenizer, 100)
