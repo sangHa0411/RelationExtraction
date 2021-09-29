@@ -76,7 +76,7 @@ def compute_metrics(pred):
   # calculate accuracy using sklearn's function
   f1 = klue_re_micro_f1(preds, labels)
   auprc = klue_re_auprc(probs, labels)
-  acc = accuracy_score(labels, preds) # 리더보드 평가에는 포함되지 않습니다.
+  acc = accuracy_score(labels, preds)
   return {
     'micro f1 score': f1,
     'auprc' : auprc,
