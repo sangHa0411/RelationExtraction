@@ -17,7 +17,6 @@ from transformers import (AutoTokenizer,
 )
 
 from load_data import *
-
 import argparse
 from pathlib import Path
 import random
@@ -25,56 +24,52 @@ import wandb
 from dotenv import load_dotenv
 
 def klue_re_micro_f1(preds, labels):
-    """KLUE-RE micro f1 (except no_relation)"""
-    label_list = ['no_relation', 
-      'org:top_members/employees', 
-      'org:members',
-      'org:product', 
-      'per:title', 
-      'org:alternate_names',
-      'per:employee_of', 
-      'org:place_of_headquarters', 
-      'per:product',
-      'org:number_of_employees/members', 
-      'per:children',
-      'per:place_of_residence', 
-      'per:alternate_names',
-      'per:other_family', 
-      'per:colleagues', 
-      'per:origin', 
-      'per:siblings',
-      'per:spouse', 
-      'org:founded', 
-      'org:political/religious_affiliation',
-      'org:member_of', 
-      'per:parents',
-      'org:dissolved',
-      'per:schools_attended', 
-      'per:date_of_death', 
-      'per:date_of_birth',
-      'per:place_of_birth', 
-      'per:place_of_death', 
-      'org:founded_by',
-      'per:religion']
-    no_relation_label_idx = label_list.index("no_relation")
-    label_indices = list(range(len(label_list)))
-    label_indices.remove(no_relation_label_idx)
-    return sklearn.metrics.f1_score(labels, preds, average="micro", labels=label_indices) * 100.0
+  label_list = ['no_relation', 
+    'org:top_members/employees', 
+    'org:members',
+    'org:product', 
+    'per:title', 
+    'org:alternate_names',
+    'per:employee_of', 
+    'org:place_of_headquarters', 
+    'per:product',
+    'org:number_of_employees/members', 
+    'per:children',
+    'per:place_of_residence', 
+    'per:alternate_names',
+    'per:other_family', 
+    'per:colleagues', 
+    'per:origin', 
+    'per:siblings',
+    'per:spouse', 
+    'org:founded', 
+    'org:political/religious_affiliation',
+    'org:member_of', 
+    'per:parents',
+    'org:dissolved',
+    'per:schools_attended', 
+    'per:date_of_death', 
+    'per:date_of_birth',
+    'per:place_of_birth', 
+    'per:place_of_death', 
+    'org:founded_by',
+    'per:religion']
+  no_relation_label_idx = label_list.index("no_relation")
+  label_indices = list(range(len(label_list)))
+  label_indices.remove(no_relation_label_idx)
+  return sklearn.metrics.f1_score(labels, preds, average="micro", labels=label_indices) * 100.0
 
 def klue_re_auprc(probs, labels):
-    """KLUE-RE AUPRC (with no_relation)"""
-    labels = np.eye(30)[labels]
-    score = np.zeros((30,))
-    for c in range(30):
-        targets_c = labels.take([c], axis=1).ravel()
-        preds_c = probs.take([c], axis=1).ravel()
-        precision, recall, _ = sklearn.metrics.precision_recall_curve(targets_c, preds_c)
-        score[c] = sklearn.metrics.auc(recall, precision)
-    return np.average(score) * 100.0
-
+  labels = np.eye(30)[labels]
+  score = np.zeros((30,))
+  for c in range(30):
+      targets_c = labels.take([c], axis=1).ravel()
+      preds_c = probs.take([c], axis=1).ravel()
+      precision, recall, _ = sklearn.metrics.precision_recall_curve(targets_c, preds_c)
+      score[c] = sklearn.metrics.auc(recall, precision)
+  return np.average(score) * 100.0
 
 def compute_metrics(pred):
-  """ validation을 위한 metrics function """
   labels = pred.label_ids
   preds = pred.predictions.argmax(-1)
   probs = pred.predictions
@@ -97,36 +92,35 @@ def label_to_num(label):
   return num_label
 
 def train(args):
-  # load model and tokenizer
+  # -- Checkpoint Tokenizer
   MODEL_NAME = args.PLM
   tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
-  # device
+  # -- Device
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-  # setting model hyperparameter
+  # -- Model
   model_config =  AutoConfig.from_pretrained(MODEL_NAME)
   model_config.num_labels = 30
-  model =  AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config).to(device)
+  model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config).to(device)
 
-  # add special token for chinese and japnese character & resize embedding
+  # -- Resize Embedding
   special_tokens_dict = {'additional_special_tokens': ['[CHN]','[ORG]', '[PER]', '[DAT]', '[LOC]','[NOH]', '[POH]']}
   num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
   model.resize_token_embeddings(len(tokenizer))
 
-  # load dataset
+  # -- Raw Data
   train_dataset = load_data("/opt/ml/dataset/train/train.csv")
   train_label = label_to_num(train_dataset['label'].values)
 
-  # tokenizing dataset
+  # -- Tokenizerd & Encoded Data
   tokenized_train = tokenized_dataset(train_dataset, tokenizer, 100)
 
-  # make dataset for pytorch.
+  # -- Dataset
   RE_train_dataset = RE_Dataset(tokenized_train, train_label)
   train_dset, val_dset = RE_train_dataset.split()
 
-  # 사용한 option 외에도 다양한 option들이 있습니다.
-  # https://huggingface.co/transformers/main_classes/trainer.html#trainingarguments 참고해주세요.
+  # -- Training Argument
   training_args = TrainingArguments(
     output_dir='./results',          # output directory
     save_total_limit=3,              # number of total save model.
@@ -140,14 +134,12 @@ def train(args):
     logging_dir='./logs',            # directory for storing logs
     logging_steps=500,               # log saving step.
     evaluation_strategy=args.evaluation_strategy, # evaluation strategy to adopt during training
-                                # `no`: No evaluation during training.
-                                # `steps`: Evaluate every `eval_steps`.
-                                # `epoch`: Evaluate every end of epoch.
     eval_steps = 500,           # evaluation step.
     load_best_model_at_end = True,
     report_to='wandb'
   )
 
+  # -- Trainer
   trainer = Trainer(
     model=model,                         # the instantiated 🤗 Transformers model to be trained
     args=training_args,                  # training arguments, defined above
@@ -156,8 +148,10 @@ def train(args):
     compute_metrics=compute_metrics      # define metrics function
   )
 
-  # train model
+  # -- Training
   trainer.train()
+
+  # -- Saving Model
   model.save_pretrained('./best_model')
   
 def main(args):
@@ -171,7 +165,6 @@ def main(args):
     name=args.wandb_unique_tag,
     group=args.PLM)
   wandb.config.update(args)
-
   train(args)
   wandb.finish()
 
@@ -187,7 +180,7 @@ def seed_everything(seed):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
 
-  ## Data and model checkpoints directories
+  ## Training Argument
   parser.add_argument('--dir_name', default='exp', help='model save at {SM_SAVE_DIR}/{name}')
   parser.add_argument('--PLM', type=str, default='monologg/koelectra-base-v3-discriminator', help='model type (default: monologg/koelectra-base-v3-discriminator)')
   parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train (default: 10)')
@@ -198,16 +191,15 @@ if __name__ == '__main__':
   parser.add_argument('--weight_decay', type=float, default=1e-4, help='strength of weight decay (default: 1e-4)')
   parser.add_argument('--evaluation_strategy', type=str, default='steps', help='evaluation strategy to adopt during training, steps or epoch (default: steps)')
 
+  # -- Seed
   parser.add_argument('--seed', type=int, default=2, help='random seed (default: 2)')
 
-  # Wandb
+  # -- Wandb
   parser.add_argument('--dotenv_path', default='/opt/ml/wandb.env', help='input your dotenv path')
   parser.add_argument('--wandb_unique_tag', default='monologg/koelectra-base-v3-discriminator', help='input your wandb unique tag (default: monologg/koelectra-base-v3-discriminator)')  
 
   args = parser.parse_args()
 
-  # Start
-  seed_everything(args.seed)
-   
+  seed_everything(args.seed)   
   main(args)
 
