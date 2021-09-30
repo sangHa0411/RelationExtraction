@@ -7,7 +7,12 @@ import random
 import torch
 from tqdm import tqdm
 from torch.utils.data import Dataset, Subset
-from preprocessor import *
+
+TAG_DICT = {'PER' : '인물', 'ORG' : '기관', 'DAT' : '날짜', 'LOC' : '위치', 'NOH' : '수량' , 'POH' : '기타'}
+SUB_TOKEN1 = '▲'
+SUB_TOKEN2 = '▫'
+OBJ_TOKEN1 = '◈'
+OBJ_TOKEN2 = '☆'
 
 class RE_Dataset(Dataset):
   def __init__(self, pair_dataset, labels, val_ratio=0.1):
@@ -63,10 +68,10 @@ def preprocessing_dataset(dataset):
     subject_entity.append(sub_info['word'])
     object_entity.append(obj_info['word'])
         
-    sub_type = 'SUB'
+    sub_type = sub_info['type']
     sub_start = sub_info['start_idx']
     sub_end = sub_info['end_idx']
-    obj_type = 'OBJ'
+    obj_type = obj_info['type']
     obj_start = obj_info['start_idx']
     obj_end = obj_info['end_idx']
         
@@ -88,22 +93,24 @@ def load_data(dataset_dir):
   return dataset
 
 def add_sep_tok(sen, sub_start, sub_end, sub_type, obj_start, obj_end, obj_type) :
-  sub_sos = ' ['+sub_type+'_SOS] '
-  sub_eos = ' ['+sub_type+'_EOS] '
+  sub_mid = TAG_DICT[sub_type]
+  obj_mid = TAG_DICT[obj_type]
 
-  obj_sos = ' ['+obj_type+'_SOS] '
-  obj_eos = ' ['+obj_type+'_EOS] '
-
+  sub_start_tok = ' ' + SUB_TOKEN1 + ' ' + SUB_TOKEN2 + ' ' + sub_mid + ' ' + SUB_TOKEN2 + ' '
+  sub_end_tok = ' ' + SUB_TOKEN1 + ' '
+  obj_start_tok = ' ' + OBJ_TOKEN1 + ' ' + OBJ_TOKEN2 + ' ' + obj_mid + ' ' + OBJ_TOKEN2 + ' '
+  obj_end_tok = ' ' + OBJ_TOKEN1 + ' '
+    
   if sub_start < obj_start :
-    sen = sen[:sub_start] + sub_sos + sen[sub_start:sub_end+1] + sub_eos + sen[sub_end+1:]
-    obj_start += 22
-    obj_end += 22
-    sen = sen[:obj_start] + obj_sos + sen[obj_start:obj_end+1] + obj_eos + sen[obj_end+1:]
+    sen = sen[:sub_start] +  sub_start_tok + sen[sub_start:sub_end+1] + sub_end_tok + sen[sub_end+1:]
+    obj_start += 13
+    obj_end += 13
+    sen = sen[:obj_start] + obj_start_tok + sen[obj_start:obj_end+1] + obj_end_tok + sen[obj_end+1:]
   else :
-    sen = sen[:obj_start] + obj_sos + sen[obj_start:obj_end+1] + obj_eos + sen[obj_end+1:]
-    sub_start += 22
-    sub_end += 22
-    sen = sen[:sub_start] + sub_sos + sen[sub_start:sub_end+1] + sub_eos + sen[sub_end+1:]
+    sen = sen[:obj_start] + obj_start_tok + sen[obj_start:obj_end+1] + obj_end_tok + sen[obj_end+1:]
+    sub_start += 13
+    sub_end += 13
+    sen = sen[:sub_start] + sub_start_tok + sen[sub_start:sub_end+1] + sub_end_tok + sen[sub_end+1:]
   return sen
 
 # is preprocessor really useful
