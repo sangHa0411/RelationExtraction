@@ -92,6 +92,12 @@ def label_to_num(label):
   return num_label
 
 def train(args):
+  # -- Rare Characters 
+  rare_chars = ['셍','쿱','긱','웡','펍','뎃','귈','슝','젬','촨','묜','푈','겅','촐','훙','껀','쳄','뢴','헴','묀','캅','툠','펩','헹','퀜',\
+  '얏','쥰','엡','뎀','힉','뵐','팃','옙','퓌','넝','튽','쾰','첵','롄','쟝','횃','웜','앳','넴','숀','캇','뎬','꽈','쾨','킵','벵','꼰','켐',\
+  '쳅','쿰','핌','쳉','츨','핼','렝','똣','뵘','욘','뇰','뷴','뮐','솝','윅','푀','믈','셴','뮈','쥘','뒬','흄','콴','홋','틉','똔','텡','퓸',\
+  '녜','맬','넵','옝','쭝','콸','슌','샨','웸','뎁','쑹','룀','젭','뱌','녠']
+
   # -- Checkpoint Tokenizer
   MODEL_NAME = args.PLM
   tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
@@ -99,21 +105,16 @@ def train(args):
   # -- Device
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-  # -- Model
+  # -- Model 
   model_config =  AutoConfig.from_pretrained(MODEL_NAME)
   model_config.num_labels = 30
   model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config).to(device)
 
   # -- Resize Embedding
-  special_tokens_dict = {'additional_special_tokens': ['[SUB_SOS]' ,
-   '[SUB_EOS]',
-   '[OBJ_SOS]' ,
-   '[OBJ_EOS]']
-  }
+  special_tokens_dict = {'additional_special_tokens': rare_chars}
   num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
   model.resize_token_embeddings(len(tokenizer))
-  # Example : 〈Something〉는  [OBJ_SOS] 조지 해리슨 [OBJ_EOS] 이 쓰고  [SUB_SOS] 비틀즈 [SUB_EOS] 가 1969년 앨범 《Abbey Road》에 담은 노래다.
-
+  
   # -- Raw Data
   train_dataset = load_data("/opt/ml/dataset/train/train.csv")
   train_label = label_to_num(train_dataset['label'].values)
