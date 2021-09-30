@@ -112,6 +112,7 @@ def train(args):
   }
   num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
   model.resize_token_embeddings(len(tokenizer))
+  # Example : 〈Something〉는  [OBJ_SOS] 조지 해리슨 [OBJ_EOS] 이 쓰고  [SUB_SOS] 비틀즈 [SUB_EOS] 가 1969년 앨범 《Abbey Road》에 담은 노래다.
 
   # -- Raw Data
   train_dataset = load_data("/opt/ml/dataset/train/train.csv")
