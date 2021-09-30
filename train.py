@@ -105,7 +105,11 @@ def train(args):
   model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config).to(device)
 
   # -- Resize Embedding
-  special_tokens_dict = {'additional_special_tokens': ['[CHN]','[ORG]', '[PER]', '[DAT]', '[LOC]','[NOH]', '[POH]']}
+  special_tokens_dict = {'additional_special_tokens': ['[SUB_SOS]' ,
+   '[SUB_EOS]',
+   '[OBJ_SOS]' ,
+   '[OBJ_EOS]']
+  }
   num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
   model.resize_token_embeddings(len(tokenizer))
 
@@ -114,7 +118,7 @@ def train(args):
   train_label = label_to_num(train_dataset['label'].values)
 
   # -- Tokenizerd & Encoded Data
-  tokenized_train = tokenized_dataset(train_dataset, tokenizer, 100)
+  tokenized_train = tokenized_dataset(train_dataset, tokenizer, 256)
 
   # -- Dataset
   RE_train_dataset = RE_Dataset(tokenized_train, train_label)
@@ -134,7 +138,7 @@ def train(args):
     logging_dir='./logs',            # directory for storing logs
     logging_steps=500,               # log saving step.
     evaluation_strategy=args.evaluation_strategy, # evaluation strategy to adopt during training
-    eval_steps = 500,           # evaluation step.
+    eval_steps = 500,                # evaluation step.
     load_best_model_at_end = True,
     report_to='wandb'
   )
