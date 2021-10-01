@@ -9,10 +9,10 @@ from tqdm import tqdm
 from torch.utils.data import Dataset, Subset
 
 TAG_DICT = {'PER' : '인물', 'ORG' : '기관', 'DAT' : '날짜', 'LOC' : '위치', 'NOH' : '수량' , 'POH' : '기타'}
-SUB_TOKEN1 = '▲'
-SUB_TOKEN2 = '▫'
-OBJ_TOKEN1 = '◈'
-OBJ_TOKEN2 = '☆'
+SUB_TOKEN1 = '→'
+SUB_TOKEN2 = '☺'
+OBJ_TOKEN1 = '§'
+OBJ_TOKEN2 = '↘'
 
 class RE_Dataset(Dataset):
   def __init__(self, pair_dataset, labels, val_ratio=0.1):
@@ -100,7 +100,7 @@ def add_sep_tok(sen, sub_start, sub_end, sub_type, obj_start, obj_end, obj_type)
   sub_end_tok = ' ' + SUB_TOKEN1 + ' '
   obj_start_tok = ' ' + OBJ_TOKEN1 + ' ' + OBJ_TOKEN2 + ' ' + obj_mid + ' ' + OBJ_TOKEN2 + ' '
   obj_end_tok = ' ' + OBJ_TOKEN1 + ' '
-    
+
   if sub_start < obj_start :
     sen = sen[:sub_start] +  sub_start_tok + sen[sub_start:sub_end+1] + sub_end_tok + sen[sub_end+1:]
     obj_start += 13
@@ -113,15 +113,16 @@ def add_sep_tok(sen, sub_start, sub_end, sub_type, obj_start, obj_end, obj_type)
     sen = sen[:sub_start] + sub_start_tok + sen[sub_start:sub_end+1] + sub_end_tok + sen[sub_end+1:]
   return sen
 
-# is preprocessor really useful
-def tokenized_dataset(dataset, tokenizer, maxlen):
+def tokenized_dataset(dataset, tokenizer, maxlen, preprocessor):
   entity_data = []
   sen_data = []
-  for e01, e02, s in zip(dataset['subject_entity'], dataset['object_entity'], dataset['sentence']):
+  for e01, e02, sen in zip(dataset['subject_entity'], dataset['object_entity'], dataset['sentence']):
     entity = e01 + ' [SEP] ' + e02
-
+    entity = preprocessor(entity)
     entity_data.append(entity)
-    sen_data.append(s)
+
+    sen = preprocessor(sen)
+    sen_data.append(sen)
 
   tokenized_sentences = tokenizer(
     entity_data,
