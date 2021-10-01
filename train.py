@@ -1,5 +1,6 @@
 import pickle as pickle
 import os
+import re
 import pandas as pd
 import torch
 import sklearn
@@ -17,6 +18,7 @@ from transformers import (AutoTokenizer,
 )
 
 from load_data import *
+from preprocessor import *
 import argparse
 from pathlib import Path
 import random
@@ -76,7 +78,7 @@ def compute_metrics(pred):
   # calculate accuracy using sklearn's function
   f1 = klue_re_micro_f1(preds, labels)
   auprc = klue_re_auprc(probs, labels)
-  acc = accuracy_score(labels, preds)
+  acc = accuracy_score(labels, preds) # 리더보드 평가에는 포함되지 않습니다.
   return {
     'micro f1 score': f1,
     'auprc' : auprc,
@@ -92,11 +94,6 @@ def label_to_num(label):
   return num_label
 
 def train(args):
-  # -- Rare Characters 
-  rare_chars = ['셍','쿱','긱','웡','펍','뎃','귈','슝','젬','촨','묜','푈','겅','촐','훙','껀','쳄','뢴','헴','묀','캅','툠','펩','헹','퀜',\
-  '얏','쥰','엡','뎀','힉','뵐','팃','옙','퓌','넝','튽','쾰','첵','롄','쟝','횃','웜','앳','넴','숀','캇','뎬','꽈','쾨','킵','벵','꼰','켐',\
-  '쳅','쿰','핌','쳉','츨','핼','렝','똣','뵘','욘','뇰','뷴','뮐','솝','윅','푀','믈','셴','뮈','쥘','뒬','흄','콴','홋','틉','똔','텡','퓸',\
-  '녜','맬','넵','옝','쭝','콸','슌','샨','웸','뎁','쑹','룀','젭','뱌','녠']
 
   # -- Checkpoint Tokenizer
   MODEL_NAME = args.PLM
@@ -110,17 +107,15 @@ def train(args):
   model_config.num_labels = 30
   model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config).to(device)
 
-  # -- Resize Embedding
-  special_tokens_dict = {'additional_special_tokens': rare_chars}
-  num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
-  model.resize_token_embeddings(len(tokenizer))
-  
   # -- Raw Data
   train_dataset = load_data("/opt/ml/dataset/train/train.csv")
   train_label = label_to_num(train_dataset['label'].values)
 
+  # -- Preprocessor 
+  preprocessor = Preprocessor(tokenizer)
+
   # -- Tokenizerd & Encoded Data
-  tokenized_train = tokenized_dataset(train_dataset, tokenizer, 256)
+  tokenized_train = tokenized_dataset(train_dataset, tokenizer, 256, preprocessor)
 
   # -- Dataset
   RE_train_dataset = RE_Dataset(tokenized_train, train_label)
@@ -186,7 +181,7 @@ def seed_everything(seed):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
 
-  ## Training Argument
+  # -- Training Argument
   parser.add_argument('--dir_name', default='exp', help='model save at {SM_SAVE_DIR}/{name}')
   parser.add_argument('--PLM', type=str, default='monologg/koelectra-base-v3-discriminator', help='model type (default: monologg/koelectra-base-v3-discriminator)')
   parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train (default: 10)')
