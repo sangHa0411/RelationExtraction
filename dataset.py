@@ -35,7 +35,6 @@ class RE_Dataset(Dataset):
       idx_list = index_map[label]    
       sample_size = int(len(idx_list) * self.val_ratio)
 
-      random.shuffle(idx_list)
       val_index = idx_list[k*(sample_size):(k+1)*sample_size]
       train_index = list(set(idx_list) - set(val_index))
             
