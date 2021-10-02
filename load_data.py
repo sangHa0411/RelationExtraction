@@ -1,12 +1,7 @@
-import pickle as pickle
-import os
 import re
-import pandas as pd
-import collections
-import random
 import torch
-from tqdm import tqdm
-from torch.utils.data import Dataset, Subset
+import pickle as pickle
+import pandas as pd
 
 TAG_DICT = {'PER' : '인물', 'ORG' : '기관', 'DAT' : '날짜', 'LOC' : '위치', 'NOH' : '수량' , 'POH' : '기타'}
 SUB_TOKEN1 = '→'
@@ -14,50 +9,7 @@ SUB_TOKEN2 = '☺'
 OBJ_TOKEN1 = '§'
 OBJ_TOKEN2 = '↘'
 
-class RE_Dataset(Dataset):
-  def __init__(self, pair_dataset, labels, val_ratio=0.1):
-    self.pair_dataset = pair_dataset
-    self.labels = labels
-    self.val_ratio = val_ratio
-
-  def __getitem__(self, idx):
-    item = {key: val[idx].clone().detach() for key, val in self.pair_dataset.items()}
-    item['labels'] = torch.tensor(self.labels[idx])
-    return item
-
-  def __len__(self):
-    return len(self.labels)
-
-  def split(self) :
-    data_size = len(self)
-    index_map = collections.defaultdict(list)
-    for idx in range(data_size) :
-        label = self.labels[idx]
-        index_map[label].append(idx)
-            
-    train_data = []
-    val_data = []
-        
-    label_size = len(index_map)
-    for label in range(label_size) :
-      idx_list = index_map[label]    
-      sample_size = int(len(idx_list) * self.val_ratio)
-
-      val_index = random.sample(idx_list, sample_size)
-      train_index = list(set(idx_list) - set(val_index))
-            
-      train_data.extend(train_index)
-      val_data.extend(val_index)
-        
-    random.shuffle(train_data)
-    random.shuffle(val_data)
-        
-    train_dset = Subset(self, train_data)
-    val_dset = Subset(self, val_data)
-    return train_dset, val_dset
-
 def preprocessing_dataset(dataset):
-  """ 처음 불러온 csv 파일을 원하는 형태의 DataFrame으로 변경 시켜줍니다."""
   subject_entity = []
   object_entity = []
   sen_data = []
