@@ -1,10 +1,10 @@
-import pickle as pickle
 import os
 import re
-import pandas as pd
 import torch
 import sklearn
+import pandas as pd
 import numpy as np
+import pickle as pickle
 from sklearn.metrics import accuracy_score, recall_score, precision_score, f1_score
 from transformers import (AutoTokenizer, 
   AutoConfig, 
@@ -19,6 +19,8 @@ from transformers import (AutoTokenizer,
 
 from load_data import *
 from preprocessor import *
+from dataset import *
+
 import argparse
 from pathlib import Path
 import random
@@ -75,10 +77,9 @@ def compute_metrics(pred):
   labels = pred.label_ids
   preds = pred.predictions.argmax(-1)
   probs = pred.predictions
-  # calculate accuracy using sklearn's function
   f1 = klue_re_micro_f1(preds, labels)
   auprc = klue_re_auprc(probs, labels)
-  acc = accuracy_score(labels, preds) # 리더보드 평가에는 포함되지 않습니다.
+  acc = accuracy_score(labels, preds)
   return {
     'micro f1 score': f1,
     'auprc' : auprc,
@@ -102,11 +103,6 @@ def train(args):
   # -- Device
   device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-  # -- Model 
-  model_config =  AutoConfig.from_pretrained(MODEL_NAME)
-  model_config.num_labels = 30
-  model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config).to(device)
-
   # -- Raw Data
   train_dataset = load_data("/opt/ml/dataset/train/train.csv")
   train_label = label_to_num(train_dataset['label'].values)
@@ -115,45 +111,69 @@ def train(args):
   preprocessor = Preprocessor(tokenizer)
 
   # -- Tokenizerd & Encoded Data
-  tokenized_train = tokenized_dataset(train_dataset, tokenizer, 256, preprocessor)
+  tokenized_train = tokenized_dataset(train_dataset, tokenizer, args.max_len, preprocessor)
+
+  # -- K-fold Validation
+  validation_ratio = 1.0 / args.kfold
 
   # -- Dataset
-  RE_train_dataset = RE_Dataset(tokenized_train, train_label)
-  train_dset, val_dset = RE_train_dataset.split()
+  RE_train_dataset = RE_Dataset(tokenized_train, train_label, validation_ratio)
 
-  # -- Training Argument
-  training_args = TrainingArguments(
-    output_dir='./results',          # output directory
-    save_total_limit=3,              # number of total save model.
-    save_steps=1000,                 # model saving step.
-    num_train_epochs=args.epochs,              # total number of training epochs
-    learning_rate=args.lr,                     # learning_rate
-    per_device_train_batch_size=args.train_batch_size,  # batch size per device during training
-    per_device_eval_batch_size=args.eval_batch_size,    # batch size for evaluation
-    warmup_steps=args.warmup_steps,                # number of warmup steps for learning rate scheduler
-    weight_decay=args.weight_decay,                # strength of weight decay
-    logging_dir='./logs',            # directory for storing logs
-    logging_steps=500,               # log saving step.
-    evaluation_strategy=args.evaluation_strategy, # evaluation strategy to adopt during training
-    eval_steps = 500,                # evaluation step.
-    load_best_model_at_end = True,
-    report_to='wandb'
-  )
+  # -- Training K times and make K trained models
+  for i in range(args.kfold) :
+    print('Training [%d/%d]' %(i, args.kfold))
 
-  # -- Trainer
-  trainer = Trainer(
-    model=model,                         # the instantiated 🤗 Transformers model to be trained
-    args=training_args,                  # training arguments, defined above
-    train_dataset=train_dset,            # training dataset
-    eval_dataset=val_dset,               # evaluation dataset
-    compute_metrics=compute_metrics      # define metrics function
-  )
+    # -- Model 
+    print('Creating New Model')
+    model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+    model_config.num_labels = 30
+    model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config).to(device)
 
-  # -- Training
-  trainer.train()
+    print('Split Train dataset and validation dataset')
+    train_dset, val_dset = RE_train_dataset.split(i)
 
-  # -- Saving Model
-  model.save_pretrained('./best_model')
+    output_dir = os.path.join('results', str(i))
+    if os.path.exists(output_dir) == False :
+      os.makedirs(output_dir)
+
+    # -- Training Argument
+    training_args = TrainingArguments(
+      output_dir=output_dir,           # output directory
+      save_total_limit=5,              # number of total save model.
+      save_steps=1000,                 # model saving step.
+      num_train_epochs=args.epochs,              # total number of training epochs
+      learning_rate=args.lr,                     # learning_rate
+      per_device_train_batch_size=args.train_batch_size,  # batch size per device during training
+      per_device_eval_batch_size=args.eval_batch_size,    # batch size for evaluation
+      warmup_steps=args.warmup_steps,                # number of warmup steps for learning rate scheduler
+      weight_decay=args.weight_decay,                # strength of weight decay
+      logging_dir='./logs',            # directory for storing logs
+      logging_steps=500,               # log saving step.
+      evaluation_strategy=args.evaluation_strategy, # evaluation strategy to adopt during training
+      eval_steps = 500,                # evaluation step.
+      load_best_model_at_end = True,
+      report_to='wandb'
+    )
+
+    # -- Trainer
+    trainer = Trainer(
+      model=model,                         # the instantiated 🤗 Transformers model to be trained
+      args=training_args,                  # training arguments, defined above
+      train_dataset=train_dset,            # training dataset
+      eval_dataset=val_dset,               # evaluation dataset
+      compute_metrics=compute_metrics      # define metrics function
+    )
+
+    # -- Training
+    print('Training Strats')
+    trainer.train()
+
+    model_dir = os.path.join('best_model', str(i))
+    if os.path.exists(model_dir) == False :
+      os.makedirs(model_dir)
+    # -- Saving Model
+    model.save_pretrained(model_dir)
+    print('Training Finished\n')
   
 def main(args):
   load_dotenv(dotenv_path=args.dotenv_path)
@@ -191,6 +211,8 @@ if __name__ == '__main__':
   parser.add_argument('--warmup_steps', type=int, default=500, help='number of warmup steps for learning rate scheduler (default: 500)')
   parser.add_argument('--weight_decay', type=float, default=1e-4, help='strength of weight decay (default: 1e-4)')
   parser.add_argument('--evaluation_strategy', type=str, default='steps', help='evaluation strategy to adopt during training, steps or epoch (default: steps)')
+  parser.add_argument('--kfold', type=int, default='5', help='value of k for k-fold validation (default : 5)')
+  parser.add_argument('--max_len', type=int, default='256', help='max length of tensor (default: 256)')
 
   # -- Seed
   parser.add_argument('--seed', type=int, default=2, help='random seed (default: 2)')
