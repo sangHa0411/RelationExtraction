@@ -84,12 +84,7 @@ class LSTMForSequenceClassification(RobertaPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        r"""
-        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
-            Labels for computing the sequence classification/regression loss. Indices should be in :obj:`[0, ...,
-            config.num_labels - 1]`. If :obj:`config.num_labels == 1` a regression loss is computed (Mean-Square loss),
-            If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
-        """
+
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         outputs = self.bert(
@@ -105,9 +100,7 @@ class LSTMForSequenceClassification(RobertaPreTrainedModel):
         )
 
         pooled_output = outputs[0][:,0].unsqueeze(1) # encoded vector of cls token (batch_size, 1, hidden_size)
-
         pooled_output = self.dropout(pooled_output) # dropout layer
-        pooled_output = self.lstm_head(pooled_output).squeeze(1) # lstm head (batch_size, feature_size)
         logits = self.classifier(pooled_output) # (batch_size, num_labels)
 
         loss = None
@@ -148,7 +141,7 @@ class SepForSequenceClassification(RobertaPreTrainedModel):
     def __init__(self, model_name, config):
         super(SepForSequenceClassification, self).__init__(config)
         self.num_labels = config.num_labels
-        self.sep_pos = config.sep_position
+        self.sep_pos = config.sep_position + 1
         self.config = config
 
         self.bert = RobertaModel.from_pretrained(model_name, 
@@ -175,12 +168,7 @@ class SepForSequenceClassification(RobertaPreTrainedModel):
         output_hidden_states=None,
         return_dict=None,
     ):
-        r"""
-        labels (:obj:`torch.LongTensor` of shape :obj:`(batch_size,)`, `optional`):
-            Labels for computing the sequence classification/regression loss. Indices should be in :obj:`[0, ...,
-            config.num_labels - 1]`. If :obj:`config.num_labels == 1` a regression loss is computed (Mean-Square loss),
-            If :obj:`config.num_labels > 1` a classification loss is computed (Cross-Entropy).
-        """
+
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         outputs = self.bert(
@@ -200,7 +188,6 @@ class SepForSequenceClassification(RobertaPreTrainedModel):
         pooled_output = torch.cat([cls_output, sep_output], dim=1) # encodded vector (batch_size, hidden_size * 2)
 
         pooled_output = self.dropout(pooled_output) # dropout layer
-        pooled_output = self.lstm_head(pooled_output).squeeze(1) # lstm head (batch_size, feature_size)
         logits = self.classifier(pooled_output) # (batch_size, num_labels)
 
         loss = None

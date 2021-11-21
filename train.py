@@ -95,9 +95,13 @@ def train(args):
     # -- Checkpoint Tokenizer
     MODEL_NAME = args.PLM
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model_config =  AutoConfig.from_pretrained(MODEL_NAME)
+    model_config.num_labels = 30
+    model_config.head_layer_size = 3
+    model_config.head_hidden_size = 768
+    model_config.sep_position = 10
+    print(model_config)
 
-    special_tokens_dict = {'additional_special_tokens': ['[TOK]']}
-    num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
     # -- Device
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -109,16 +113,14 @@ def train(args):
     preprocessor = Preprocessor(tokenizer)
 
     # -- Tokenizerd & Encoded Data
-    tokenized_train = tokenized_dataset(train_dataset, tokenizer, args.max_len, preprocessor)
+    tokenized_train = tokenized_dataset(dataset=train_dataset, 
+        tokenizer=tokenizer, 
+        entity_len=model_config.sep_position,
+        max_len=args.max_len, 
+        preprocessor=preprocessor
+    )
     # -- Dataset
     re_dataset = RE_Dataset(tokenized_train, train_label)
-
-    model_config =  AutoConfig.from_pretrained(MODEL_NAME)
-    model_config.num_labels = 30
-    model_config.head_layer_size = 3
-    model_config.head_hidden_size = 768
-    model_config.sep_position = 10
-    print(model_config)
 
     if args.model_type == 'base' :
         print('Model Type : base')
@@ -132,9 +134,10 @@ def train(args):
         print('Model Type : SEP')
         model_module = importlib.import_module('model')
         model_architecture = getattr(model_module, 'SepForSequenceClassification')
+        model = model_architecture(MODEL_NAME, config=model_config).to(device)
+    else :
         raise NameError('Wrong Model type')
 
-    model.resize_token_embeddings(len(tokenizer))
     print('Split Train dataset and validation dataset')
     train_dset, val_dset = re_dataset.split(args.validation_ratio)
 

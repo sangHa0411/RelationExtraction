@@ -68,11 +68,11 @@ def tokenized_dataset(dataset, tokenizer, entity_len , max_len, preprocessor):
     entity_data = []
     sen_data = []
     for e01, e02, sen in zip(dataset['subject_entity'], dataset['object_entity'], dataset['sentence']):
-        entity = e01 + ' [TOK] ' + e02
+        entity = e01 + ' [SEP] ' + e02
         entity = tokenizer.tokenize(preprocessor(entity))
         entity_data.append(entity)
 
-        sen = tokenizer.tokenize(preprocessor(sen))
+        sen = preprocessor(sen)
         sen_data.append(sen)
 
     entity_str_data = []
@@ -92,7 +92,6 @@ def tokenized_dataset(dataset, tokenizer, entity_len , max_len, preprocessor):
         return_token_type_ids=False,
 		add_special_tokens=True
 	)
-    breakpoint()
     return tokenized_sentences
 
 
