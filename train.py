@@ -96,6 +96,8 @@ def train(args):
     MODEL_NAME = args.PLM
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
+    special_tokens_dict = {'additional_special_tokens': ['[TOK]']}
+    num_added_toks = tokenizer.add_special_tokens(special_tokens_dict)
     # -- Device
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -115,6 +117,7 @@ def train(args):
     model_config.num_labels = 30
     model_config.head_layer_size = 3
     model_config.head_hidden_size = 768
+    model_config.sep_position = 10
     print(model_config)
 
     if args.model_type == 'base' :
@@ -125,9 +128,13 @@ def train(args):
         model_module = importlib.import_module('model')
         model_architecture = getattr(model_module, 'LSTMForSequenceClassification')
         model = model_architecture(MODEL_NAME, config=model_config).to(device)
-    else :
+    elif args.model_type == 'sep' :
+        print('Model Type : SEP')
+        model_module = importlib.import_module('model')
+        model_architecture = getattr(model_module, 'SepForSequenceClassification')
         raise NameError('Wrong Model type')
 
+    model.resize_token_embeddings(len(tokenizer))
     print('Split Train dataset and validation dataset')
     train_dset, val_dset = re_dataset.split(args.validation_ratio)
 
@@ -167,7 +174,7 @@ def train(args):
     print('Training Strats')
     trainer.train()
 
-    model_dir = os.path.join('best_model', str(i))
+    model_dir = './best_model'
     if os.path.exists(model_dir) == False :
         os.makedirs(model_dir)
     # -- Saving Model

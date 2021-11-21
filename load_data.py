@@ -1,7 +1,7 @@
 
 import pandas as pd
 
-TAG_DICT = {'PER' : '인물', 'ORG' : '기관', 'DAT' : '날짜', 'LOC' : '위치', 'NOH' : '수량' , 'POH' : '기타'}
+TAG_DICT = {'PER' : '인물', 'ORG' : '단체', 'DAT' : '날짜', 'LOC' : '장소', 'NOH' : '수량' , 'POH' : '기타'}
 SUB_TOKEN1 = '→'
 SUB_TOKEN2 = '☺'
 OBJ_TOKEN1 = '§'
@@ -64,24 +64,35 @@ def add_sep_tok(sen, sub_start, sub_end, sub_type, obj_start, obj_end, obj_type)
 		sen = sen[:sub_start] + sub_start_tok + sen[sub_start:sub_end+1] + sub_end_tok + sen[sub_end+1:]
 	return sen
 
-def tokenized_dataset(dataset, tokenizer, maxlen, preprocessor):
+def tokenized_dataset(dataset, tokenizer, entity_len , max_len, preprocessor):
     entity_data = []
     sen_data = []
     for e01, e02, sen in zip(dataset['subject_entity'], dataset['object_entity'], dataset['sentence']):
-        entity = e01 + ' [SEP] ' + e02
-        entity = preprocessor(entity)
+        entity = e01 + ' [TOK] ' + e02
+        entity = tokenizer.tokenize(preprocessor(entity))
         entity_data.append(entity)
-        sen = preprocessor(sen)
+
+        sen = tokenizer.tokenize(preprocessor(sen))
         sen_data.append(sen)
 
+    entity_str_data = []
+    for entity in entity_data :
+        entity_padded = entity + ['[PAD]'] * (entity_len - len(entity)) if len(entity) <= entity_len \
+            else entity[:entity_len]
+        entity_str = tokenizer.convert_tokens_to_string(entity_padded)
+        entity_str_data.append(entity_str)
+
     tokenized_sentences = tokenizer(
-        entity_data, # entity data (subject, object)
+        entity_str_data, # entity data (subject, object)
         sen_data, # sentence data
 		return_tensors="pt",
 		truncation=True,
 		padding='max_length',
-		max_length=maxlen,
+		max_length=max_len,
+        return_token_type_ids=False,
 		add_special_tokens=True
 	)
-    
+    breakpoint()
     return tokenized_sentences
+
+
