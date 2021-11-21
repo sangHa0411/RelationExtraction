@@ -2,6 +2,7 @@ import os
 import re
 import torch
 import sklearn
+import importlib
 import pandas as pd
 import numpy as np
 import pickle as pickle
@@ -112,7 +113,20 @@ def train(args):
 
     model_config =  AutoConfig.from_pretrained(MODEL_NAME)
     model_config.num_labels = 30
-    model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config).to(device)
+    model_config.head_layer_size = 3
+    model_config.head_hidden_size = 768
+    print(model_config)
+
+    if args.model_type == 'base' :
+        print('Model Type : base')
+        model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, config=model_config).to(device)
+    elif args.model_type == 'lstm' :
+        print('Model Type : lstm')
+        model_module = importlib.import_module('model')
+        model_architecture = getattr(model_module, 'LSTMForSequenceClassification')
+        model = model_architecture(MODEL_NAME, config=model_config).to(device)
+    else :
+        raise NameError('Wrong Model type')
 
     print('Split Train dataset and validation dataset')
     train_dset, val_dset = re_dataset.split(args.validation_ratio)
@@ -190,6 +204,7 @@ if __name__ == '__main__':
 
     # -- Training Argument
     parser.add_argument('--dir_name', default='exp', help='model save at {SM_SAVE_DIR}/{name}')
+    parser.add_argument('--model_type', default='base', help='type of model head')
     parser.add_argument('--PLM', type=str, default='klue/roberta-large', help='model type (default: klue/roberta-large)')
     parser.add_argument('--epochs', type=int, default=10, help='number of epochs to train (default: 10)')
     parser.add_argument('--lr', type=float, default=5e-5, help='learning rate (default: 5e-5)')
